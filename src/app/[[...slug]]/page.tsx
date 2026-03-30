@@ -24,12 +24,6 @@ const toMetaText = (value: unknown) => {
   return String(value).replace(/\s+/g, " ").trim();
 };
 
-const stripHtml = (value: string) =>
-  value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
 const truncate = (value: string, max = 160) => {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1).trimEnd()}…`;
@@ -369,8 +363,8 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
       const eventBaseDescription =
         toMetaText(data.initialEventData.description) ||
         toMetaText(data.initialEventData.shortDescription) ||
-        toMetaText(data.initialEventData.theme) ||
-        siteDescription;
+        siteDescription ||
+        eventTitle;
       const eventDescription =
         eventLocation && !eventBaseDescription.toLowerCase().includes(eventLocation.toLowerCase())
           ? truncate(`${eventBaseDescription} Location: ${eventLocation}.`)
@@ -410,7 +404,8 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
       const merchDescription = truncate(
         toMetaText(data.initialMerchData.description) ||
           toMetaText(data.initialMerchData.shortDescription) ||
-          siteDescription,
+          siteDescription ||
+          `Shop ${siteName} merch`,
       );
       const merchImage =
         resolveRecordImage(data.initialMerchData, origin) || fallbackImage;
@@ -427,7 +422,9 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
 
     const pageTitle = toMetaText(data.currentPage?.title);
     const pageDescription = truncate(
-      toMetaText(stripHtml(data.currentPage?.html || "")) || siteDescription,
+      toMetaText((data.currentPage as any)?.description) ||
+        siteDescription ||
+        `${siteName} website`,
     );
     const finalTitle = isDefaultPage ? siteName : pageTitle || siteName;
 
