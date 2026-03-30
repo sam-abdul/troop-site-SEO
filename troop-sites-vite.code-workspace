@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "path": "../troop-sites-vite",
+    },
+    {
+      "path": ".",
+    },
+    {
+      "path": "../../backend/troop-node-dashboard",
+    },
+  ],
+  "settings": {},
+}
