@@ -225,12 +225,18 @@ const slugify = (value: string) => value.toLowerCase().replace(/\s+/g, "-");
 
 const formatDateValue = (value: unknown) => {
   if (!value) return "";
-  const raw = typeof value === "string" || typeof value === "number" ? value : "";
+  const raw =
+    typeof value === "string" || typeof value === "number" ? value : "";
   let date: Date;
 
-  if (typeof raw === "number" || (typeof raw === "string" && /^\d+$/.test(raw))) {
+  if (
+    typeof raw === "number" ||
+    (typeof raw === "string" && /^\d+$/.test(raw))
+  ) {
     const timestamp = typeof raw === "string" ? parseInt(raw, 10) : raw;
-    date = new Date(timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp);
+    date = new Date(
+      timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp,
+    );
   } else {
     date = new Date(String(raw));
   }
@@ -250,7 +256,9 @@ const formatTimeValue = (value: unknown) => {
 
   if (/^\d+$/.test(raw)) {
     const timestamp = parseInt(raw, 10);
-    date = new Date(timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp);
+    date = new Date(
+      timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp,
+    );
   } else if (raw.includes("T") || raw.includes(":")) {
     date = new Date(raw);
   } else {
@@ -332,7 +340,9 @@ const populateBoundFields = (
   eventData: Record<string, any> | null,
   merchData: Record<string, any> | null,
 ) => {
-  const boundElements = root.querySelectorAll<HTMLElement>("[data-bind-source][data-bind-field]");
+  const boundElements = root.querySelectorAll<HTMLElement>(
+    "[data-bind-source][data-bind-field]",
+  );
 
   boundElements.forEach((el) => {
     const source = el.getAttribute("data-bind-source");
@@ -353,7 +363,9 @@ const populateBoundFields = (
 
 const getRequiredVariantTypes = (merch: any) => {
   const variants = Array.isArray(merch?.variants) ? merch.variants : [];
-  return [...new Set(variants.map((v: VariantOption) => v?.type).filter(Boolean))] as string[];
+  return [
+    ...new Set(variants.map((v: VariantOption) => v?.type).filter(Boolean)),
+  ] as string[];
 };
 
 const replaceRootSelectorToken = (
@@ -363,7 +375,7 @@ const replaceRootSelectorToken = (
 ) => {
   // Replace selector tokens only, not class names like ".card-body".
   const tokenRegex = new RegExp(
-    `(^|[\\s,{>+~])${token}(?=($|[\\s.#\\[:{>+~,]))`,
+    `(^|[\\s,{}>+~(])${token}(?=($|[\\s.#\\[:{>+~,:)]))`,
     "gim",
   );
   return css.replace(tokenRegex, `$1${replacement}`);
@@ -371,12 +383,69 @@ const replaceRootSelectorToken = (
 
 const normalizeRootSelectors = (css: string) => {
   let normalized = css.replace(/:root\b/gi, ".troop-page-root");
-  normalized = replaceRootSelectorToken(normalized, "html", ".troop-page-root");
-  normalized = replaceRootSelectorToken(normalized, "body", ".troop-page-root");
-  return normalized.replace(/\.troop-page-root\s+\.troop-page-root/g, ".troop-page-root");
+  normalized = replaceRootSelectorToken(
+    normalized,
+    "html",
+    ".troop-page-root",
+  );
+  normalized = replaceRootSelectorToken(
+    normalized,
+    "body",
+    ".troop-page-body",
+  );
+  return normalized
+    .replace(/\.troop-page-root\s+\.troop-page-root/g, ".troop-page-root")
+    .replace(/\.troop-page-body\s+\.troop-page-body/g, ".troop-page-body");
 };
 
-const getStyleValue = (element: HTMLElement, cssVarName: string, fallback: string) => {
+const extractBodyStyleFallbacks = (css: string) => {
+  const fallback: {
+    backgroundColor?: string;
+    color?: string;
+    fontFamily?: string;
+  } = {};
+
+  const isUsableValue = (value: string) => {
+    const lowered = value.trim().toLowerCase();
+    return (
+      lowered.length > 0 &&
+      lowered !== "initial" &&
+      lowered !== "inherit" &&
+      lowered !== "unset" &&
+      lowered !== "transparent"
+    );
+  };
+
+  const selectorRuleRegex =
+    /(?:^|})\s*([^{}]*\b(?:body|html)\b[^{}]*)\{([^}]*)\}/gim;
+  let match: RegExpExecArray | null;
+  while ((match = selectorRuleRegex.exec(css))) {
+    const declarations = match[2] || "";
+
+    const bgColorMatch = declarations.match(/background-color\s*:\s*([^;]+)\s*;?/i);
+    if (bgColorMatch?.[1] && isUsableValue(bgColorMatch[1])) {
+      fallback.backgroundColor = bgColorMatch[1].trim();
+    }
+
+    const colorMatch = declarations.match(/(?:^|;)\s*color\s*:\s*([^;]+)\s*;?/i);
+    if (colorMatch?.[1] && isUsableValue(colorMatch[1])) {
+      fallback.color = colorMatch[1].trim();
+    }
+
+    const fontFamilyMatch = declarations.match(/font-family\s*:\s*([^;]+)\s*;?/i);
+    if (fontFamilyMatch?.[1] && isUsableValue(fontFamilyMatch[1])) {
+      fallback.fontFamily = fontFamilyMatch[1].trim();
+    }
+  }
+
+  return fallback;
+};
+
+const getStyleValue = (
+  element: HTMLElement,
+  cssVarName: string,
+  fallback: string,
+) => {
   const cleanName = cssVarName.replace(/^--/, "");
   const inlineStyle = element.getAttribute("style") || "";
   const inlineRegex = new RegExp(`--${cleanName}:\\s*([^;]+)`, "i");
@@ -386,7 +455,10 @@ const getStyleValue = (element: HTMLElement, cssVarName: string, fallback: strin
     return inlineMatch[1].trim();
   }
 
-  const computed = window.getComputedStyle(element).getPropertyValue(`--${cleanName}`).trim();
+  const computed = window
+    .getComputedStyle(element)
+    .getPropertyValue(`--${cleanName}`)
+    .trim();
   return computed || fallback;
 };
 
@@ -399,15 +471,21 @@ const populateVariationSelectors = (root: HTMLElement, merchData: any) => {
   if (!selectors.length) return;
 
   const variants = merchData.variants;
-  const uniqueTypes = [...new Set(variants.map((v: VariantOption) => v?.type).filter(Boolean))] as string[];
+  const uniqueTypes = [
+    ...new Set(variants.map((v: VariantOption) => v?.type).filter(Boolean)),
+  ] as string[];
   const variantsByType: Record<string, VariantOption[]> = {};
 
   uniqueTypes.forEach((type) => {
-    const typeVariants = variants.filter((v: VariantOption) => v?.type === type && v?.value);
+    const typeVariants = variants.filter(
+      (v: VariantOption) => v?.type === type && v?.value,
+    );
     const values = [
       ...new Set(
         typeVariants
-          .map((v: VariantOption) => (typeof v.value === "string" ? v.value : String(v.value)))
+          .map((v: VariantOption) =>
+            typeof v.value === "string" ? v.value : String(v.value),
+          )
           .filter(Boolean),
       ),
     ] as string[];
@@ -416,22 +494,50 @@ const populateVariationSelectors = (root: HTMLElement, merchData: any) => {
   });
 
   selectors.forEach((selector) => {
-    selector.querySelectorAll("div[data-variant-section]").forEach((section) => section.remove());
+    selector
+      .querySelectorAll("div[data-variant-section]")
+      .forEach((section) => section.remove());
     selector.querySelector("[data-preview-variants]")?.remove();
 
-    const container = selector.closest<HTMLElement>(".variation-selector-container") || selector;
+    const container =
+      selector.closest<HTMLElement>(".variation-selector-container") ||
+      selector;
 
     const styleConfig = {
-      buttonBorder: getStyleValue(container, "variation-button-border", "#d1d5db"),
+      buttonBorder: getStyleValue(
+        container,
+        "variation-button-border",
+        "#d1d5db",
+      ),
       buttonBg: getStyleValue(container, "variation-button-bg", "#f9fafb"),
       buttonText: getStyleValue(container, "variation-button-text", "#111827"),
       buttonRadius: getStyleValue(container, "variation-button-radius", "8px"),
-      buttonPadding: getStyleValue(container, "variation-button-padding", "8px 16px"),
-      buttonFontSize: getStyleValue(container, "variation-button-font-size", "14px"),
+      buttonPadding: getStyleValue(
+        container,
+        "variation-button-padding",
+        "8px 16px",
+      ),
+      buttonFontSize: getStyleValue(
+        container,
+        "variation-button-font-size",
+        "14px",
+      ),
       buttonGap: getStyleValue(container, "variation-button-gap", "8px"),
-      selectedBg: getStyleValue(container, "variation-button-selected-bg", "#49DD96"),
-      selectedBorder: getStyleValue(container, "variation-button-selected-border", "#49DD96"),
-      selectedText: getStyleValue(container, "variation-button-selected-text", "#000000"),
+      selectedBg: getStyleValue(
+        container,
+        "variation-button-selected-bg",
+        "#49DD96",
+      ),
+      selectedBorder: getStyleValue(
+        container,
+        "variation-button-selected-border",
+        "#49DD96",
+      ),
+      selectedText: getStyleValue(
+        container,
+        "variation-button-selected-text",
+        "#000000",
+      ),
     };
 
     Object.entries(variantsByType).forEach(([type, typeVariants]) => {
@@ -459,9 +565,15 @@ const populateVariationSelectors = (root: HTMLElement, merchData: any) => {
         button.setAttribute("data-style-border", styleConfig.buttonBorder);
         button.setAttribute("data-style-bg", styleConfig.buttonBg);
         button.setAttribute("data-style-text", styleConfig.buttonText);
-        button.setAttribute("data-style-selected-border", styleConfig.selectedBorder);
+        button.setAttribute(
+          "data-style-selected-border",
+          styleConfig.selectedBorder,
+        );
         button.setAttribute("data-style-selected-bg", styleConfig.selectedBg);
-        button.setAttribute("data-style-selected-text", styleConfig.selectedText);
+        button.setAttribute(
+          "data-style-selected-text",
+          styleConfig.selectedText,
+        );
 
         button.style.padding = styleConfig.buttonPadding;
         button.style.fontSize = styleConfig.buttonFontSize;
@@ -483,22 +595,29 @@ const populateVariationSelectors = (root: HTMLElement, merchData: any) => {
   });
 };
 
-const updateVariantButtonStyles = (root: HTMLElement, selectedVariants: VariantOption[]) => {
+const updateVariantButtonStyles = (
+  root: HTMLElement,
+  selectedVariants: VariantOption[],
+) => {
   const buttons = root.querySelectorAll<HTMLElement>("[data-variant-button]");
 
   buttons.forEach((button) => {
     const variantType = button.getAttribute("data-variant-type");
     const variantValue = button.getAttribute("data-variant-value");
     const isSelected = selectedVariants.some(
-      (variant) => variant.type === variantType && variant.value === variantValue,
+      (variant) =>
+        variant.type === variantType && variant.value === variantValue,
     );
 
     const border = button.getAttribute("data-style-border") || "#d1d5db";
     const bg = button.getAttribute("data-style-bg") || "#f9fafb";
     const text = button.getAttribute("data-style-text") || "#111827";
-    const selectedBorder = button.getAttribute("data-style-selected-border") || "#49DD96";
-    const selectedBg = button.getAttribute("data-style-selected-bg") || "#49DD96";
-    const selectedText = button.getAttribute("data-style-selected-text") || "#000000";
+    const selectedBorder =
+      button.getAttribute("data-style-selected-border") || "#49DD96";
+    const selectedBg =
+      button.getAttribute("data-style-selected-bg") || "#49DD96";
+    const selectedText =
+      button.getAttribute("data-style-selected-text") || "#000000";
 
     button.style.borderColor = isSelected ? selectedBorder : border;
     button.style.backgroundColor = isSelected ? selectedBg : bg;
@@ -579,9 +698,19 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     if ((eventId || singleEvent) && eventTemplatePage) return eventTemplatePage;
     if (merchId && merchTemplatePage) return merchTemplatePage;
     return page;
-  }, [eventId, eventTemplatePage, merchId, merchTemplatePage, page, singleEvent]);
+  }, [
+    eventId,
+    eventTemplatePage,
+    merchId,
+    merchTemplatePage,
+    page,
+    singleEvent,
+  ]);
 
-  const currentPath = useMemo(() => (pathname || "").replace(/^\//, ""), [pathname]);
+  const currentPath = useMemo(
+    () => (pathname || "").replace(/^\//, ""),
+    [pathname],
+  );
 
   const pageHtml = useMemo(() => {
     const html = (activePage?.html || "").trim();
@@ -591,16 +720,29 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     return html;
   }, [activePage?.html]);
 
-  const pageCss = useMemo(() => normalizeRootSelectors(activePage?.css || ""), [activePage?.css]);
+  const pageCss = useMemo(
+    () => normalizeRootSelectors(activePage?.css || ""),
+    [activePage?.css],
+  );
+  const bodyCssFallbacks = useMemo(
+    () => extractBodyStyleFallbacks(activePage?.css || ""),
+    [activePage?.css],
+  );
 
   const pageBaseCss = useMemo(
     () => `
       .troop-page-root {
         width: 100%;
         min-height: 100dvh;
-        font-family: ${activePage.bodyFontFamily || "Poppins, sans-serif"};
-        background-color: ${activePage.bodyBackgroundColor || "#ffffff"};
-        color: ${activePage.bodyTextColor || "#000000"};
+        background-color: ${bodyCssFallbacks.backgroundColor || activePage.bodyBackgroundColor || "#ffffff"};
+        color: ${bodyCssFallbacks.color || activePage.bodyTextColor || "#000000"};
+      }
+      .troop-page-body {
+        width: 100%;
+        min-height: 100dvh;
+        font-family: ${bodyCssFallbacks.fontFamily || activePage.bodyFontFamily || "Poppins, sans-serif"};
+        background-color: ${bodyCssFallbacks.backgroundColor || activePage.bodyBackgroundColor || "#ffffff"};
+        color: ${bodyCssFallbacks.color || activePage.bodyTextColor || "#000000"};
         text-align: ${activePage.bodyTextAlign || "left"};
         -webkit-font-smoothing: auto;
         -moz-osx-font-smoothing: auto;
@@ -612,6 +754,9 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       activePage.bodyFontFamily,
       activePage.bodyTextAlign,
       activePage.bodyTextColor,
+      bodyCssFallbacks.backgroundColor,
+      bodyCssFallbacks.color,
+      bodyCssFallbacks.fontFamily,
     ],
   );
 
@@ -624,7 +769,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   );
 
   const getPageRoot = () =>
-    shadowRef.current?.querySelector<HTMLElement>(".troop-page-root") || null;
+    shadowRef.current?.querySelector<HTMLElement>(".troop-page-body") || null;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -638,22 +783,16 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       ${shadowHeadHtml}
       <style>${shadowFontImportCss}</style>
       <style>${baseRuntimeCss}\n${pageBaseCss}\n${pageCss}</style>
-      <div class="troop-page-root troop-aos-fallback">${pageHtml}</div>
+      <div class="troop-page-root troop-aos-fallback"><div class="troop-page-body">${pageHtml}</div></div>
     `;
   }, [pageBaseCss, pageCss, pageHtml, shadowHeadHtml]);
 
   useEffect(() => {
-    const prevBackgroundColor = document.body.style.backgroundColor;
-    const prevColor = document.body.style.color;
     document.body.style.height = "100dvh";
-    document.body.style.backgroundColor = activePage.bodyBackgroundColor || "#ffffff";
-    document.body.style.color = activePage.bodyTextColor || "#111827";
     return () => {
       document.body.style.height = "";
-      document.body.style.backgroundColor = prevBackgroundColor;
-      document.body.style.color = prevColor;
     };
-  }, [activePage.bodyBackgroundColor, activePage.bodyTextColor]);
+  }, []);
 
   useEffect(() => {
     if (!siteId) return;
@@ -711,7 +850,8 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
             String(response.data.event.userID) === String(userId);
 
           if (response.success && response.data?.event && sameOwner) {
-            if (mounted) setSingleEvent({ id: eventId, ...response.data.event });
+            if (mounted)
+              setSingleEvent({ id: eventId, ...response.data.event });
           } else {
             router.push("/");
           }
@@ -723,7 +863,11 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         return;
       }
 
-      if (!currentPath || currentPath.startsWith("event/") || currentPath.startsWith("merch/")) {
+      if (
+        !currentPath ||
+        currentPath.startsWith("event/") ||
+        currentPath.startsWith("merch/")
+      ) {
         if (!currentPath.startsWith("event/")) {
           setSingleEvent(null);
         }
@@ -755,7 +899,10 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
 
         if (response.success && response.data?.event && sameOwner) {
           if (mounted) {
-            setSingleEvent({ id: response.data.event.id, ...response.data.event });
+            setSingleEvent({
+              id: response.data.event.id,
+              ...response.data.event,
+            });
           }
         } else {
           if (mounted) setSingleEvent(null);
@@ -882,10 +1029,14 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         if (activePage.pageType === "merch" && merchId && singleMerch) {
           const requiredTypes = getRequiredVariantTypes(singleMerch);
           const selectedTypes = selectedVariants.map((variant) => variant.type);
-          const allSelected = requiredTypes.every((type) => selectedTypes.includes(type));
+          const allSelected = requiredTypes.every((type) =>
+            selectedTypes.includes(type),
+          );
 
           if (!allSelected && requiredTypes.length > 0) {
-            toast.error("Please select all required variants before purchasing");
+            toast.error(
+              "Please select all required variants before purchasing",
+            );
             return;
           }
 
@@ -902,8 +1053,12 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         event.preventDefault();
 
         const parent = decreaseBtn.parentElement;
-        const quantityEl = parent?.querySelector<HTMLElement>("[data-quantity-value]");
-        const currentQty = quantityEl ? parseInt(quantityEl.textContent || "1", 10) : quantity;
+        const quantityEl = parent?.querySelector<HTMLElement>(
+          "[data-quantity-value]",
+        );
+        const currentQty = quantityEl
+          ? parseInt(quantityEl.textContent || "1", 10)
+          : quantity;
         const nextQty = Math.max(1, currentQty - 1);
 
         if (quantityEl) quantityEl.textContent = String(nextQty);
@@ -916,8 +1071,12 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         event.preventDefault();
 
         const parent = increaseBtn.parentElement;
-        const quantityEl = parent?.querySelector<HTMLElement>("[data-quantity-value]");
-        const currentQty = quantityEl ? parseInt(quantityEl.textContent || "1", 10) : quantity;
+        const quantityEl = parent?.querySelector<HTMLElement>(
+          "[data-quantity-value]",
+        );
+        const currentQty = quantityEl
+          ? parseInt(quantityEl.textContent || "1", 10)
+          : quantity;
         const nextQty = currentQty + 1;
 
         if (quantityEl) quantityEl.textContent = String(nextQty);
@@ -925,7 +1084,9 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         return;
       }
 
-      const variantButton = target.closest<HTMLElement>("[data-variant-button]");
+      const variantButton = target.closest<HTMLElement>(
+        "[data-variant-button]",
+      );
       if (variantButton) {
         event.preventDefault();
 
@@ -934,7 +1095,9 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         if (!variantType || !variantValue) return;
 
         setSelectedVariants((prev) => {
-          const withoutType = prev.filter((variant) => variant.type !== variantType);
+          const withoutType = prev.filter(
+            (variant) => variant.type !== variantType,
+          );
           return [...withoutType, { type: variantType, value: variantValue }];
         });
         return;
@@ -949,9 +1112,11 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       const eventTargetId = link.getAttribute("data-event-id");
       const merchTargetId = link.getAttribute("data-merch-id");
       const isEventCard =
-        link.classList.contains("gjs-event-card") || link.getAttribute("data-gjs-type") === "eventCard";
+        link.classList.contains("gjs-event-card") ||
+        link.getAttribute("data-gjs-type") === "eventCard";
       const isMerchCard =
-        link.classList.contains("gjs-merch-card") || link.getAttribute("data-gjs-type") === "merchCard";
+        link.classList.contains("gjs-merch-card") ||
+        link.getAttribute("data-gjs-type") === "merchCard";
       const linkType = link.getAttribute("data-link-type");
 
       if (!href) return;
@@ -967,7 +1132,8 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         const targetPage = pages.find((item) => item.id === pageId);
         if (targetPage) {
           const isDefaultTarget =
-            Boolean(defaultPageId) && String(targetPage.id) === String(defaultPageId);
+            Boolean(defaultPageId) &&
+            String(targetPage.id) === String(defaultPageId);
           router.push(isDefaultTarget ? "/" : `/${slugify(targetPage.title)}`);
         }
         return;
@@ -995,8 +1161,10 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         event.preventDefault();
         const normalizedHref = href.toLowerCase();
         const isDefaultHref =
-          (defaultPageSlug && normalizedHref === `/${defaultPageSlug.toLowerCase()}`) ||
-          (defaultPageId && normalizedHref === `/${String(defaultPageId).toLowerCase()}`);
+          (defaultPageSlug &&
+            normalizedHref === `/${defaultPageSlug.toLowerCase()}`) ||
+          (defaultPageId &&
+            normalizedHref === `/${String(defaultPageId).toLowerCase()}`);
         router.push(isDefaultHref ? "/" : href);
       }
     };
@@ -1022,18 +1190,23 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   ]);
 
   const isLoading = Boolean(
-    (eventId && loadingEvent) || (activePage.pageType === "merch" && merchId && loadingMerch),
+    (eventId && loadingEvent) ||
+    (activePage.pageType === "merch" && merchId && loadingMerch),
   );
   const isEventContext = Boolean(eventId || singleEvent);
   const eventDataReady = !isEventContext || Boolean(singleEvent);
-  const merchDataReady = activePage.pageType !== "merch" || !merchId || Boolean(singleMerch);
+  const merchDataReady =
+    activePage.pageType !== "merch" || !merchId || Boolean(singleMerch);
   const isDataReady = eventDataReady && merchDataReady;
 
   if (isLoading) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3 text-center">
-          <Loader strokeWidth={3} className="h-8 w-8 animate-spin text-gray-600" />
+          <Loader
+            strokeWidth={3}
+            className="h-8 w-8 animate-spin text-gray-600"
+          />
           <p className="text-gray-600">Loading page...</p>
         </div>
       </div>
@@ -1048,7 +1221,6 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         style={{
           width: "100%",
           minHeight: "100dvh",
-          overflow: "auto",
         }}
       >
         <div ref={hostRef} style={{ width: "100%", minHeight: "100dvh" }} />
