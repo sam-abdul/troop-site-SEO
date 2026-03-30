@@ -13,15 +13,19 @@ export const slugify = (value: string) => value.toLowerCase().replace(/\s+/g, "-
 
 export const resolveDomain = (hostHeader: string | null, queryDomain?: string) => {
   const host = (hostHeader || "").split(":")[0].trim();
-  if (!host) {
-    return process.env.NEXT_PUBLIC_DEFAULT_DOMAIN || "lagerxperience.troop.sh";
-  }
+  const fallbackDomain =
+    process.env.NEXT_PUBLIC_DEFAULT_DOMAIN || "lagerxperience.troop.sh";
 
   if (isLocalHost(host)) {
     if (queryDomain) {
       return queryDomain.replace(/\//g, "").trim();
     }
-    return process.env.NEXT_PUBLIC_DEFAULT_DOMAIN || "lagerxperience.troop.sh";
+    return fallbackDomain;
+  }
+
+  if (!host) {
+    // No host in non-local context should not silently resolve to a default domain.
+    return "";
   }
 
   return host.replace(/\//g, "").trim();
@@ -105,4 +109,3 @@ export const resolveCurrentPage = ({
 
   return site.pages[0];
 };
-

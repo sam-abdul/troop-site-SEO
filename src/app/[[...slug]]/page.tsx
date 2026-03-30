@@ -215,6 +215,17 @@ const loadSiteData = async (props: PageProps) => {
   const path = (routeParams.slug || []).join("/");
   const { eventId, merchId } = parseRoute(path);
 
+  if (!domain) {
+    return {
+      domain: "",
+      path,
+      eventId,
+      merchId,
+      site: null,
+      isEventShortURL: false,
+    };
+  }
+
   const siteResponse = await sitesAPI.getSiteByDomain(domain);
   if (!siteResponse.success || !siteResponse.data) {
     return {
