@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter, Poppins, Raleway } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
 const inter = Inter({
@@ -43,6 +44,15 @@ export default function RootLayout({
       className={`${inter.variable} ${poppins.variable} ${raleway.variable} ${ibmMono.variable} h-full`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <NextTopLoader
+          color="#49DD96"
+          height={3}
+          showSpinner={false}
+          crawlSpeed={180}
+          easing="ease"
+          speed={220}
+          shadow="0 0 10px #49DD96,0 0 5px #49DD96"
+        />
         {children}
       </body>
     </html>
