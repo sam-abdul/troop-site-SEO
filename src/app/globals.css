@@ -24,3 +24,16 @@ body {
   text-rendering: auto;
   min-height: 100dvh;
 }
+
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  mix-blend-mode: difference;
+  z-index: 2147483647 !important;
+}
+
+#nprogress .peg {
+  box-shadow: none !important;
+}

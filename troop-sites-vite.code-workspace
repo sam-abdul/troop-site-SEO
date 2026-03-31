@@ -9,6 +9,9 @@
     {
       "path": "../../backend/troop-node-dashboard",
     },
+    {
+      "path": "../troop",
+    },
   ],
   "settings": {},
 }

@@ -1,4 +1,5 @@
 import api from "./api";
+import type { SeoSettings } from "@/types/seo";
 
 export interface SitePage {
   id: string;
@@ -29,7 +30,9 @@ export interface Site {
   shareImageUrl?: string;
   bannerUrl?: string;
   coverImageUrl?: string;
+  faviconUrl?: string;
   disabled?: boolean;
+  seo?: Record<string, SeoSettings>;
 }
 
 export interface SiteResponse {

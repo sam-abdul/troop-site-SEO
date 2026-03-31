@@ -45,13 +45,14 @@ export default function RootLayout({
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <NextTopLoader
-          color="#49DD96"
+          color="#000000"
           height={3}
           showSpinner={false}
           crawlSpeed={180}
           easing="ease"
           speed={220}
-          shadow="0 0 10px #49DD96,0 0 5px #49DD96"
+          shadow="0 0 0 transparent"
+          zIndex={2147483647}
         />
         {children}
       </body>
