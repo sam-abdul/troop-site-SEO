@@ -112,11 +112,63 @@ export default function JoinEvent({
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
   const [discount, setDiscount] = useState<Discount | null>(null);
   const [discountCode, setDiscountCode] = useState("");
+  const [ticketPhoneNumber, setTicketPhoneNumber] = useState("");
+  const [isSavingTicketPhoneNumber, setIsSavingTicketPhoneNumber] =
+    useState(false);
 
   const queryParams = new URLSearchParams(window.location.search);
   const affiliateCode = queryParams.get("aff") || "";
 
   const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setTicketPhoneNumber(String(fullUserDetails?.ticketPhoneNumber || ""));
+  }, [fullUserDetails?.ticketPhoneNumber]);
+
+  const getNormalizedTicketPhoneNumber = () =>
+    ticketPhoneNumber.replace(/\s+/g, " ").trim();
+
+  const hasValidTicketPhoneNumber = (value: string) =>
+    value.replace(/\D/g, "").length >= 7;
+
+  const persistTicketPhoneNumberIfNeeded = async () => {
+    if (!event.collectPhoneNumber) return true;
+    if (!userID) return false;
+
+    const normalizedPhone = getNormalizedTicketPhoneNumber();
+    if (!hasValidTicketPhoneNumber(normalizedPhone)) {
+      toast.error("Please enter a valid phone number");
+      return false;
+    }
+
+    try {
+      setIsSavingTicketPhoneNumber(true);
+      await api.post(
+        "https://troop-node-dashboard.onrender.com/api/ticket-auth/auth/update-ticket-phone",
+        {
+          userId: userID,
+          phoneNumber: normalizedPhone,
+        },
+      );
+
+      setFullUserDetails((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              ticketPhoneNumber: normalizedPhone,
+            }
+          : prev,
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Error updating ticket phone number:", error);
+      toast.error("Failed to save phone number. Please try again.");
+      return false;
+    } finally {
+      setIsSavingTicketPhoneNumber(false);
+    }
+  };
 
   const checkAttendeeStatus = async () => {
     if (id && userID) {
@@ -507,10 +559,12 @@ export default function JoinEvent({
                 ticket: {
                   name: selectedTicket.name,
                   price: selectedTicket.price,
+                  instruction: selectedTicket.instruction || "",
                 },
                 referralCode,
                 affiliateCode,
                 quickPay: false,
+                ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
               }
             : {
                 eventId: id,
@@ -522,6 +576,7 @@ export default function JoinEvent({
                 referralCode,
                 affiliateCode,
                 quickPay: false,
+                ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
               };
 
           const response = await api.post(
@@ -772,6 +827,7 @@ export default function JoinEvent({
                     photoURL: fullUserDetails.photoURL,
                   },
                   ticketName: selectedTicket.name,
+                  instruction: selectedTicket.instruction || "",
                   eventName: event.title.trim(),
                   referralCode,
                   affiliateCode,
@@ -784,6 +840,7 @@ export default function JoinEvent({
                   discount: discount || null,
                   addPercent: selectedTicket.addPercent || false,
                   extraPercent: selectedTicket.extraPercent || 0,
+                  ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
                 }
               : {
                   amount: event.ticketAmount,
@@ -798,6 +855,7 @@ export default function JoinEvent({
                   eventName: event.title.trim(),
                   referralCode,
                   affiliateCode,
+                  ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
                 },
           );
 
@@ -921,6 +979,7 @@ export default function JoinEvent({
                   photoURL: fullUserDetails.photoURL,
                   email: fullUserDetails.email,
                   ticketName: selectedTicket.name,
+                  instruction: selectedTicket.instruction || "",
                   referralCode,
                   affiliateCode,
                   numberOfTickets,
@@ -932,6 +991,7 @@ export default function JoinEvent({
                   discount: discount || null,
                   addPercent: selectedTicket.addPercent || false,
                   extraPercent: selectedTicket.extraPercent || 0,
+                  ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
                 }
               : {
                   amount: event.ticketAmount,
@@ -943,6 +1003,7 @@ export default function JoinEvent({
                   email: fullUserDetails.email,
                   referralCode,
                   affiliateCode,
+                  ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
                 },
           );
 
@@ -1051,6 +1112,7 @@ export default function JoinEvent({
               photoURL: fullUserDetails.photoURL,
             },
             ticketName: selectedTicket.name,
+            instruction: selectedTicket.instruction || "",
             eventName: event.title.trim(),
             referralCode,
             affiliateCode,
@@ -1061,6 +1123,7 @@ export default function JoinEvent({
             discount: discount || null,
             addPercent: selectedTicket.addPercent || false,
             extraPercent: selectedTicket.extraPercent || 0,
+            ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
           }
         : {
             amount: event.ticketAmount,
@@ -1075,6 +1138,7 @@ export default function JoinEvent({
             eventName: event.title.trim(),
             referralCode,
             affiliateCode,
+            ticketPhoneNumber: getNormalizedTicketPhoneNumber(),
           };
       const response = await api.post(
         "https://troop-node-payment.onrender.com/api/core/paypal/create-order",
@@ -1324,6 +1388,31 @@ export default function JoinEvent({
                   : "You are already an attendee of this event"}
               </p>
             )}
+            {event.collectPhoneNumber && (
+              <div className="mb-5">
+                <label
+                  htmlFor="ticket-phone-number"
+                  className="block text-sm font-medium opacity-50"
+                >
+                  Phone Number
+                </label>
+                <input
+                  id="ticket-phone-number"
+                  type="tel"
+                  placeholder={
+                    event.country === "United States"
+                      ? "(555) 123-4567"
+                      : "+234 801 234 5678"
+                  }
+                  value={ticketPhoneNumber}
+                  onChange={(e) => setTicketPhoneNumber(e.target.value)}
+                  className="mt-1 p-2 block w-full border border-[--border] bg-[var(--bg-secondary)] rounded-md shadow-sm outline-none disabled:opacity-50"
+                />
+                <p className="text-xs opacity-60 mt-1">
+                  This will be visible to the event organizer.
+                </p>
+              </div>
+            )}
             <div
               style={{ marginBottom: 15 }}
               className="flex items-center gap-2"
@@ -1359,16 +1448,29 @@ export default function JoinEvent({
                 </span>
               </button>
               <button
-                disabled={isLoading}
-                onClick={() => {
+                disabled={isLoading || isSavingTicketPhoneNumber}
+                onClick={async () => {
+                  if (
+                    event.collectPhoneNumber &&
+                    !hasValidTicketPhoneNumber(getNormalizedTicketPhoneNumber())
+                  ) {
+                    toast.error("Please enter a valid phone number");
+                    return;
+                  }
+                  const canProceed = await persistTicketPhoneNumberIfNeeded();
+                  if (!canProceed) {
+                    return;
+                  }
                   setCurrentStep("payment");
                 }}
                 className="w-full bg-[var(--secondary)] py-2 px-4 rounded-md hover:md:opacity-50 text-sm flex items-center gap-3 justify-center disabled:opacity-50"
                 style={{ color: colors.buttonText }}
               >
-                {isLoading && <Loader2 size={15} className="animate-spin" />}{" "}
+                {(isLoading || isSavingTicketPhoneNumber) && (
+                  <Loader2 size={15} className="animate-spin" />
+                )}{" "}
                 <span style={{ fontSize: 18, padding: 5, fontWeight: "600" }}>
-                  Next
+                  {isSavingTicketPhoneNumber ? "Saving..." : "Next"}
                 </span>
                 <CircleChevronRight size={18} strokeWidth={3} />
               </button>

@@ -25,6 +25,8 @@ export interface EventTicket {
   addPercent?: boolean;
   /** Name of the ticket tier */
   name: string;
+  /** Optional ticket-specific instruction shown to buyers */
+  instruction?: string;
   /** Price of the ticket */
   price: string;
   /** Maximum tickets per purchase */
@@ -142,6 +144,8 @@ export interface EventDetails {
   requireApproval?: boolean;
 
   hideLocation?: boolean;
+
+  collectPhoneNumber?: boolean;
 }
 
 export interface Discount {

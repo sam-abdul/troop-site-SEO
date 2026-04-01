@@ -12,6 +12,12 @@
     {
       "path": "../troop",
     },
+    {
+      "path": "../../backend/troop-firebase-functions",
+    },
+    {
+      "path": "../../backend/troop-payment",
+    },
   ],
   "settings": {},
 }

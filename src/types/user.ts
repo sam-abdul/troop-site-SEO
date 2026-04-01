@@ -4,5 +4,6 @@ export interface UserDetails {
   email?: string;
   canReceiveEmail?: boolean;
   customerId?: string;
+  ticketPhoneNumber?: string;
   [key: string]: any;
 }
