@@ -361,6 +361,125 @@ const populateBoundFields = (
   });
 };
 
+const getEventCardFieldValue = (event: Record<string, any>, field: string) => {
+  if (!event || !field) return "";
+
+  switch (field) {
+    case "title":
+      return String(event.title || "");
+    case "theme":
+      return String(event.theme || event.eventTheme || "");
+    case "date":
+      return formatDateValue(event.date || event.startDate);
+    case "time":
+      return formatTimeValue(event.time || event.startTime);
+    case "dateTime":
+    case "date-time": {
+      const date = formatDateValue(event.date || event.startDate);
+      const time = formatTimeValue(event.time || event.startTime);
+      return [date, time].filter(Boolean).join(" ");
+    }
+    case "price": {
+      if (event.isFree) return "Free";
+      const tickets = Array.isArray(event.tickets)
+        ? event.tickets
+        : Array.isArray(event.ticketTypes)
+          ? event.ticketTypes
+          : [];
+      const ticketPrices = tickets
+        .map((ticket: any) => Number(ticket?.price ?? ticket?.ticketAmount ?? 0))
+        .filter((price: number) => Number.isFinite(price));
+      const minPrice =
+        ticketPrices.length > 0 ? Math.min(...ticketPrices) : Number(event.price || 0);
+      if (!Number.isFinite(minPrice) || minPrice <= 0) return "Free";
+      const currency = countries[event.country || "US"]?.currency || "$";
+      return `${currency}${Number(minPrice).toLocaleString()}`;
+    }
+    case "imageUrl":
+    case "image":
+      return String(event.imageUrl || event.image || "");
+    case "description":
+      return String(event.description || "");
+    case "location":
+      return String(
+        event.location || event.address || event.placeDetails?.description || "",
+      );
+    case "venue":
+      return String(event.venue || event.location || event.address || "");
+    default:
+      return String(event[field] ?? "");
+  }
+};
+
+const populateEventCards = (root: HTMLElement, userEvents: any[] | null) => {
+  if (!Array.isArray(userEvents) || userEvents.length === 0) return;
+
+  const allCards = root.querySelectorAll<HTMLElement>(
+    'a[data-event-id], .gjs-event-card[data-event-id], [data-gjs-type="eventCard"][data-event-id], [data-block-id="eventCard"][data-event-id]',
+  );
+
+  allCards.forEach((card) => {
+    const eventId = card.getAttribute("data-event-id");
+    if (!eventId) return;
+
+    const event = userEvents.find((item: any) => String(item?.id) === String(eventId));
+    if (!event) return;
+
+    if (card.tagName === "A") {
+      card.setAttribute("href", `/event/${eventId}`);
+      card.setAttribute("data-link-type", "event");
+      card.setAttribute("data-target-type", "url");
+    }
+
+    const boundElements = card.querySelectorAll<HTMLElement>("[data-bind-event]");
+    boundElements.forEach((el) => {
+      const field = el.getAttribute("data-bind-event") || "";
+      const value = getEventCardFieldValue(event, field);
+      if (el.tagName === "IMG") {
+        el.setAttribute("src", value);
+        if (!el.getAttribute("alt")) {
+          el.setAttribute("alt", event.title || "Event image");
+        }
+      } else {
+        el.textContent = value;
+      }
+    });
+
+    const imageValue = getEventCardFieldValue(event, "imageUrl");
+    const imageEl =
+      card.querySelector<HTMLImageElement>(
+        '.gjs-event-card-image img, .card-media img, img[data-bind-event="imageUrl"], img[data-bind-event="image"], img',
+      ) || null;
+    if (imageEl && imageValue) {
+      imageEl.setAttribute("src", imageValue);
+      imageEl.setAttribute("alt", event.title || "Event image");
+    }
+
+    const titleValue = getEventCardFieldValue(event, "title");
+    const themeValue = getEventCardFieldValue(event, "theme");
+    const dateValue = getEventCardFieldValue(event, "dateTime");
+    const priceValue = getEventCardFieldValue(event, "price");
+
+    const titleEl = card.querySelector<HTMLElement>(
+      '.gjs-event-card-title, .card-title, [data-bind-event="title"]',
+    );
+    const themeEl = card.querySelector<HTMLElement>(
+      '.gjs-event-card-theme, .card-theme, [data-bind-event="theme"]',
+    );
+    const dateEl = card.querySelector<HTMLElement>(
+      '.gjs-event-card-date, .date-line, [data-bind-event="dateTime"], [data-bind-event="date-time"]',
+    );
+    const priceEl = card.querySelector<HTMLElement>(
+      '.gjs-event-card-price, .price, [data-bind-event="price"]',
+    );
+
+    if (titleEl) titleEl.textContent = titleValue;
+    if (themeEl) themeEl.textContent = themeValue;
+    if (dateEl) dateEl.textContent = dateValue;
+    if (priceEl) priceEl.textContent = priceValue;
+  });
+};
+
 const getRequiredVariantTypes = (merch: any) => {
   const variants = Array.isArray(merch?.variants) ? merch.variants : [];
   return [
@@ -655,7 +774,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { userId } = useSiteData();
+  const { userId, userEvents } = useSiteData();
 
   const hostRef = useRef<HTMLDivElement>(null);
   const shadowRef = useRef<ShadowRoot | null>(null);
@@ -977,12 +1096,13 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     if (!root) return;
 
     populateBoundFields(root, singleEvent, singleMerch);
+    populateEventCards(root, userEvents);
 
     if (singleMerch) {
       populateVariationSelectors(root, singleMerch);
       updateVariantButtonStyles(root, selectedVariantsRef.current);
     }
-  }, [pageBaseCss, pageCss, pageHtml, singleEvent, singleMerch]);
+  }, [pageBaseCss, pageCss, pageHtml, singleEvent, singleMerch, userEvents]);
 
   useEffect(() => {
     const root = getPageRoot();
