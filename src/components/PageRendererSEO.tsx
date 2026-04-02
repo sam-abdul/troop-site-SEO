@@ -361,6 +361,31 @@ const populateBoundFields = (
   });
 };
 
+const withImageVersion = (
+  url: string,
+  version: string | number | undefined,
+) => {
+  const source = String(url || "").trim();
+  if (!source) return "";
+
+  const versionValue =
+    version !== undefined && version !== null ? String(version) : "";
+  if (!versionValue) return source;
+
+  try {
+    const parsed = new URL(source, "https://troop.local");
+    parsed.searchParams.set("troopv", versionValue);
+    if (source.startsWith("http://") || source.startsWith("https://")) {
+      return parsed.toString();
+    }
+    const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return path.startsWith("/") ? path : source;
+  } catch {
+    const separator = source.includes("?") ? "&" : "?";
+    return `${source}${separator}troopv=${encodeURIComponent(versionValue)}`;
+  }
+};
+
 const getEventCardFieldValue = (event: Record<string, any>, field: string) => {
   if (!event || !field) return "";
 
@@ -387,22 +412,37 @@ const getEventCardFieldValue = (event: Record<string, any>, field: string) => {
           ? event.ticketTypes
           : [];
       const ticketPrices = tickets
-        .map((ticket: any) => Number(ticket?.price ?? ticket?.ticketAmount ?? 0))
+        .map((ticket: any) =>
+          Number(ticket?.price ?? ticket?.ticketAmount ?? 0),
+        )
         .filter((price: number) => Number.isFinite(price));
       const minPrice =
-        ticketPrices.length > 0 ? Math.min(...ticketPrices) : Number(event.price || 0);
+        ticketPrices.length > 0
+          ? Math.min(...ticketPrices)
+          : Number(event.price || 0);
       if (!Number.isFinite(minPrice) || minPrice <= 0) return "Free";
       const currency = countries[event.country || "US"]?.currency || "$";
       return `${currency}${Number(minPrice).toLocaleString()}`;
     }
     case "imageUrl":
-    case "image":
-      return String(event.imageUrl || event.image || "");
+    case "image": {
+      const rawImage = String(event.imageUrl || event.image || "");
+      const imageVersion =
+        event.updatedAt ||
+        event.lastUpdated ||
+        event.timestamp ||
+        event._fetchedAt ||
+        "";
+      return withImageVersion(rawImage, imageVersion);
+    }
     case "description":
       return String(event.description || "");
     case "location":
       return String(
-        event.location || event.address || event.placeDetails?.description || "",
+        event.location ||
+          event.address ||
+          event.placeDetails?.description ||
+          "",
       );
     case "venue":
       return String(event.venue || event.location || event.address || "");
@@ -411,7 +451,11 @@ const getEventCardFieldValue = (event: Record<string, any>, field: string) => {
   }
 };
 
-const populateEventCards = (root: HTMLElement, userEvents: any[] | null) => {
+const populateEventCards = (
+  root: HTMLElement,
+  userEvents: any[] | null,
+  eventDetailsById: Record<string, any>,
+) => {
   if (!Array.isArray(userEvents) || userEvents.length === 0) return;
 
   const allCards = root.querySelectorAll<HTMLElement>(
@@ -422,7 +466,9 @@ const populateEventCards = (root: HTMLElement, userEvents: any[] | null) => {
     const eventId = card.getAttribute("data-event-id");
     if (!eventId) return;
 
-    const event = userEvents.find((item: any) => String(item?.id) === String(eventId));
+    const event =
+      eventDetailsById[String(eventId)] ||
+      userEvents.find((item: any) => String(item?.id) === String(eventId));
     if (!event) return;
 
     if (card.tagName === "A") {
@@ -431,7 +477,8 @@ const populateEventCards = (root: HTMLElement, userEvents: any[] | null) => {
       card.setAttribute("data-target-type", "url");
     }
 
-    const boundElements = card.querySelectorAll<HTMLElement>("[data-bind-event]");
+    const boundElements =
+      card.querySelectorAll<HTMLElement>("[data-bind-event]");
     boundElements.forEach((el) => {
       const field = el.getAttribute("data-bind-event") || "";
       const value = getEventCardFieldValue(event, field);
@@ -502,16 +549,8 @@ const replaceRootSelectorToken = (
 
 const normalizeRootSelectors = (css: string) => {
   let normalized = css.replace(/:root\b/gi, ".troop-page-root");
-  normalized = replaceRootSelectorToken(
-    normalized,
-    "html",
-    ".troop-page-root",
-  );
-  normalized = replaceRootSelectorToken(
-    normalized,
-    "body",
-    ".troop-page-body",
-  );
+  normalized = replaceRootSelectorToken(normalized, "html", ".troop-page-root");
+  normalized = replaceRootSelectorToken(normalized, "body", ".troop-page-body");
   return normalized
     .replace(/\.troop-page-root\s+\.troop-page-root/g, ".troop-page-root")
     .replace(/\.troop-page-body\s+\.troop-page-body/g, ".troop-page-body");
@@ -541,17 +580,23 @@ const extractBodyStyleFallbacks = (css: string) => {
   while ((match = selectorRuleRegex.exec(css))) {
     const declarations = match[2] || "";
 
-    const bgColorMatch = declarations.match(/background-color\s*:\s*([^;]+)\s*;?/i);
+    const bgColorMatch = declarations.match(
+      /background-color\s*:\s*([^;]+)\s*;?/i,
+    );
     if (bgColorMatch?.[1] && isUsableValue(bgColorMatch[1])) {
       fallback.backgroundColor = bgColorMatch[1].trim();
     }
 
-    const colorMatch = declarations.match(/(?:^|;)\s*color\s*:\s*([^;]+)\s*;?/i);
+    const colorMatch = declarations.match(
+      /(?:^|;)\s*color\s*:\s*([^;]+)\s*;?/i,
+    );
     if (colorMatch?.[1] && isUsableValue(colorMatch[1])) {
       fallback.color = colorMatch[1].trim();
     }
 
-    const fontFamilyMatch = declarations.match(/font-family\s*:\s*([^;]+)\s*;?/i);
+    const fontFamilyMatch = declarations.match(
+      /font-family\s*:\s*([^;]+)\s*;?/i,
+    );
     if (fontFamilyMatch?.[1] && isUsableValue(fontFamilyMatch[1])) {
       fallback.fontFamily = fontFamilyMatch[1].trim();
     }
@@ -793,6 +838,10 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const [selectedVariants, setSelectedVariants] = useState<VariantOption[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [globalJs, setGlobalJs] = useState("");
+  const [eventDetailsById, setEventDetailsById] = useState<Record<string, any>>(
+    {},
+  );
+  const requestedEventIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     singleEventRef.current = singleEvent;
@@ -1097,13 +1146,79 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     if (!root) return;
 
     populateBoundFields(root, singleEvent, singleMerch);
-    populateEventCards(root, userEvents);
+    populateEventCards(root, userEvents, eventDetailsById);
 
     if (singleMerch) {
       populateVariationSelectors(root, singleMerch);
       updateVariantButtonStyles(root, selectedVariantsRef.current);
     }
-  }, [pageBaseCss, pageCss, pageHtml, singleEvent, singleMerch, userEvents]);
+  }, [
+    eventDetailsById,
+    pageBaseCss,
+    pageCss,
+    pageHtml,
+    singleEvent,
+    singleMerch,
+    userEvents,
+  ]);
+
+  useEffect(() => {
+    const root = getPageRoot();
+    if (!root || !userId) return;
+
+    const ids = Array.from(
+      new Set(
+        Array.from(root.querySelectorAll<HTMLElement>("[data-event-id]"))
+          .map((el) => el.getAttribute("data-event-id") || "")
+          .filter(Boolean),
+      ),
+    );
+
+    if (!ids.length) return;
+
+    let cancelled = false;
+
+    const fetchLatestEventDetails = async () => {
+      const missingIds = ids.filter(
+        (id) =>
+          !eventDetailsById[id] &&
+          !requestedEventIdsRef.current.has(String(id)),
+      );
+
+      if (!missingIds.length) return;
+
+      await Promise.all(
+        missingIds.map(async (id) => {
+          requestedEventIdsRef.current.add(String(id));
+          try {
+            const response = await eventsAPI.getSingleEvent(String(id));
+            const event = response?.data?.event;
+            const sameOwner =
+              event?.userID !== undefined &&
+              String(event.userID) === String(userId);
+            if (!cancelled && response?.success && event && sameOwner) {
+              setEventDetailsById((prev) => ({
+                ...prev,
+                [String(id)]: {
+                  id: String(id),
+                  ...event,
+                  _fetchedAt: Date.now(),
+                },
+              }));
+            }
+          } catch {
+            // noop
+          }
+        }),
+      );
+    };
+
+    fetchLatestEventDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventDetailsById, pageBaseCss, pageCss, pageHtml, userId]);
 
   useEffect(() => {
     const root = getPageRoot();
@@ -1212,7 +1327,15 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     return () => {
       root.removeEventListener("mouseover", handleHoverPrefetch);
     };
-  }, [defaultPageId, defaultPageSlug, pageBaseCss, pageCss, pageHtml, pages, router]);
+  }, [
+    defaultPageId,
+    defaultPageSlug,
+    pageBaseCss,
+    pageCss,
+    pageHtml,
+    pages,
+    router,
+  ]);
 
   useEffect(() => {
     const root = getPageRoot();
@@ -1328,7 +1451,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
 
       if (!href) return;
 
-      if (/^(https?:\/\/|mailto:|tel:)/i.test(href)) {
+      if (/^(https?:\/\/)/i.test(href)) {
         event.preventDefault();
         window.open(href, "_blank", "noopener,noreferrer");
         return;
