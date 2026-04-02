@@ -782,6 +782,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const singleEventRef = useRef<any | null>(initialEventData);
   const singleMerchRef = useRef<any | null>(initialMerchData);
   const selectedVariantsRef = useRef<VariantOption[]>([]);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const [singleEvent, setSingleEvent] = useState<any | null>(initialEventData);
   const [singleMerch, setSingleMerch] = useState<any | null>(initialMerchData);
@@ -1126,6 +1127,92 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       console.error("Global JS error", error);
     }
   }, [activePage.id, activePage.title, globalJs, pageHtml]);
+
+  useEffect(() => {
+    const root = getPageRoot();
+    if (!root) return;
+
+    const prefetchRoute = (href: string) => {
+      if (!href || !href.startsWith("/") || href.startsWith("//")) return;
+      const normalizedHref = href.toLowerCase();
+      const isDefaultHref =
+        (defaultPageSlug &&
+          normalizedHref === `/${defaultPageSlug.toLowerCase()}`) ||
+        (defaultPageId &&
+          normalizedHref === `/${String(defaultPageId).toLowerCase()}`);
+      const route = isDefaultHref ? "/" : href;
+      if (prefetchedRoutesRef.current.has(route)) return;
+      prefetchedRoutesRef.current.add(route);
+      try {
+        router.prefetch(route);
+      } catch {
+        // noop
+      }
+    };
+
+    const resolveRouteFromLink = (link: HTMLAnchorElement) => {
+      const href = link.getAttribute("href") || "";
+      const pageId = link.getAttribute("data-page-id");
+      const targetType = link.getAttribute("data-target-type");
+      const eventTargetId = link.getAttribute("data-event-id");
+      const merchTargetId = link.getAttribute("data-merch-id");
+      const isEventCard =
+        link.classList.contains("gjs-event-card") ||
+        link.getAttribute("data-gjs-type") === "eventCard";
+      const isMerchCard =
+        link.classList.contains("gjs-merch-card") ||
+        link.getAttribute("data-gjs-type") === "merchCard";
+      const linkType = link.getAttribute("data-link-type");
+
+      if (pageId && targetType === "page") {
+        const targetPage = pages.find((item) => item.id === pageId);
+        if (!targetPage) return "";
+        const isDefaultTarget =
+          Boolean(defaultPageId) &&
+          String(targetPage.id) === String(defaultPageId);
+        return isDefaultTarget ? "/" : `/${slugify(targetPage.title)}`;
+      }
+
+      if (isEventCard && eventTargetId) return `/event/${eventTargetId}`;
+      if (isMerchCard && merchTargetId) return `/merch/${merchTargetId}`;
+
+      if (!href || /^(https?:\/\/|mailto:|tel:)/i.test(href)) return "";
+      if (
+        linkType === "event" ||
+        linkType === "merch" ||
+        href.startsWith("/event/") ||
+        href.startsWith("/merch/") ||
+        (href.startsWith("/") && !href.startsWith("//"))
+      ) {
+        return href;
+      }
+      return "";
+    };
+
+    const prefetchAllVisibleLinks = () => {
+      const links = root.querySelectorAll<HTMLAnchorElement>("a");
+      links.forEach((link) => {
+        const route = resolveRouteFromLink(link);
+        if (route) prefetchRoute(route);
+      });
+    };
+
+    const handleHoverPrefetch = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const link = target.closest<HTMLAnchorElement>("a");
+      if (!link) return;
+      const route = resolveRouteFromLink(link);
+      if (route) prefetchRoute(route);
+    };
+
+    prefetchAllVisibleLinks();
+    root.addEventListener("mouseover", handleHoverPrefetch);
+
+    return () => {
+      root.removeEventListener("mouseover", handleHoverPrefetch);
+    };
+  }, [defaultPageId, defaultPageSlug, pageBaseCss, pageCss, pageHtml, pages, router]);
 
   useEffect(() => {
     const root = getPageRoot();

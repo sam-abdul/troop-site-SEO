@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import { SitePageShell } from "@/components/SitePageShell";
 import { eventsAPI } from "@/services/eventsAPI";
@@ -14,6 +15,30 @@ import {
 } from "@/lib/site-resolver";
 
 export const dynamic = "force-dynamic";
+
+const getSiteByDomainCached = unstable_cache(
+  async (domain: string) => sitesAPI.getSiteByDomain(domain),
+  ["site-by-domain"],
+  { revalidate: 30 },
+);
+
+const getEventByShortURLCached = unstable_cache(
+  async (shortURL: string) => eventsAPI.getEventByShortURL(shortURL),
+  ["event-by-short-url"],
+  { revalidate: 15 },
+);
+
+const getSingleEventCached = unstable_cache(
+  async (eventId: string) => eventsAPI.getSingleEvent(eventId),
+  ["event-by-id"],
+  { revalidate: 15 },
+);
+
+const getSingleMerchCached = unstable_cache(
+  async (merchId: string) => merchAPI.getSingleMerch(merchId),
+  ["merch-by-id"],
+  { revalidate: 30 },
+);
 
 type PageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -508,7 +533,7 @@ const loadSiteData = async (props: PageProps) => {
     };
   }
 
-  const siteResponse = await sitesAPI.getSiteByDomain(domain);
+  const siteResponse = await getSiteByDomainCached(domain);
   if (!siteResponse.success || !siteResponse.data) {
     return {
       domain,
@@ -535,7 +560,7 @@ const loadSiteData = async (props: PageProps) => {
 
     if (!pageBySlug && !pageById) {
       try {
-        const eventResponse = await eventsAPI.getEventByShortURL(path);
+        const eventResponse = await getEventByShortURLCached(path);
         if (
           eventResponse.success &&
           eventResponse.data?.event &&
@@ -563,7 +588,7 @@ const loadSiteData = async (props: PageProps) => {
 
   if (eventId) {
     try {
-      const eventResponse = await eventsAPI.getSingleEvent(eventId);
+      const eventResponse = await getSingleEventCached(eventId);
       const sameOwner =
         eventResponse?.data?.event?.userID !== undefined &&
         String(eventResponse.data.event.userID) === String(site.userId);
@@ -579,7 +604,7 @@ const loadSiteData = async (props: PageProps) => {
 
   if (merchId) {
     try {
-      const merchResponse = await merchAPI.getSingleMerch(merchId);
+      const merchResponse = await getSingleMerchCached(merchId);
       const sameOwner =
         merchResponse?.data?.userID !== undefined &&
         String(merchResponse.data.userID) === String(site.userId);
