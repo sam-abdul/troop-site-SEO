@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { eventsAPI } from "@/services/eventsAPI";
 import { merchAPI } from "@/services/merchAPI";
@@ -838,6 +838,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const [selectedVariants, setSelectedVariants] = useState<VariantOption[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [globalJs, setGlobalJs] = useState("");
+  const [shadowReady, setShadowReady] = useState(false);
   const [eventDetailsById, setEventDetailsById] = useState<Record<string, any>>(
     {},
   );
@@ -940,7 +941,10 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const getPageRoot = () =>
     shadowRef.current?.querySelector<HTMLElement>(".troop-page-body") || null;
 
-  useEffect(() => {
+  const pageBackgroundColor =
+    bodyCssFallbacks.backgroundColor || activePage.bodyBackgroundColor || "#ffffff";
+
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
 
@@ -954,6 +958,8 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       <style>${baseRuntimeCss}\n${pageBaseCss}\n${pageCss}</style>
       <div class="troop-page-root troop-aos-fallback"><div class="troop-page-body">${pageHtml}</div></div>
     `;
+
+    setShadowReady(true);
   }, [pageBaseCss, pageCss, pageHtml, shadowHeadHtml]);
 
   useEffect(() => {
@@ -1551,9 +1557,17 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
         style={{
           width: "100%",
           minHeight: "100dvh",
+          backgroundColor: pageBackgroundColor,
         }}
       >
-        <div ref={hostRef} style={{ width: "100%", minHeight: "100dvh" }} />
+        <div
+          ref={hostRef}
+          style={{
+            width: "100%",
+            minHeight: "100dvh",
+            visibility: shadowReady ? "visible" : "hidden",
+          }}
+        />
       </div>
 
       {showJoinEventModal && singleEvent?.id && (
