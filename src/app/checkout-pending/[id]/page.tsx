@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { CheckCircle2, ChevronLeftCircleIcon } from "lucide-react";
+import { trackTrafficEvent } from "@/services/trafficAPI";
 
 export default function CheckOutPendingPage() {
   const routeParams = useParams<{ id?: string | string[] }>();
@@ -13,6 +14,20 @@ export default function CheckOutPendingPage() {
     return raw || "";
   }, [routeParams]);
   const backHref = routeId ? `/event/${routeId}` : "/";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    trackTrafficEvent({
+      domain: window.location.host,
+      eventType: "checkout_pending",
+      path: window.location.pathname,
+      pageType: "checkout_pending",
+      entityType: "event",
+      entityId: routeId || undefined,
+      referrer: document.referrer || "",
+    });
+  }, [routeId]);
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-5 text-center font-[poppins]">

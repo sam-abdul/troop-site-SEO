@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronLeftCircleIcon } from "lucide-react";
+import { trackTrafficEvent } from "@/services/trafficAPI";
 
 export default function CheckOutSuccessPage() {
   const searchParams = useSearchParams();
@@ -21,6 +22,20 @@ export default function CheckOutSuccessPage() {
     : routeId
       ? `/event/${routeId}`
       : "/";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    trackTrafficEvent({
+      domain: window.location.host,
+      eventType: "checkout_success",
+      path: window.location.pathname,
+      pageType: "checkout_success",
+      entityType: isMerch ? "merch" : "event",
+      entityId: routeId || undefined,
+      referrer: document.referrer || "",
+    });
+  }, [isMerch, routeId]);
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-5 text-center font-[poppins]">

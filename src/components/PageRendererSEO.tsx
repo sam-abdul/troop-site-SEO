@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { eventsAPI } from "@/services/eventsAPI";
 import { merchAPI } from "@/services/merchAPI";
 import { globalJsAPI } from "@/services/globalJsAPI";
+import { trackTrafficEvent } from "@/services/trafficAPI";
 import { useSiteData } from "@/context/SiteDataContext";
 import { countries } from "@/utils/countries";
 import JoinEvent from "@/components/events/JoinEvent";
@@ -828,6 +829,7 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const singleMerchRef = useRef<any | null>(initialMerchData);
   const selectedVariantsRef = useRef<VariantOption[]>([]);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
+  const trackedPageViewKeyRef = useRef("");
 
   const [singleEvent, setSingleEvent] = useState<any | null>(initialEventData);
   const [singleMerch, setSingleMerch] = useState<any | null>(initialMerchData);
@@ -881,6 +883,58 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
     () => (pathname || "").replace(/^\//, ""),
     [pathname],
   );
+
+  useEffect(() => {
+    if (!siteId || !activePage?.id) return;
+    if (typeof window === "undefined") return;
+
+    const path = pathname || "/";
+    const entityType =
+      eventId || singleEvent?.id ? "event" : merchId ? "merch" : undefined;
+    const entityId = eventId || singleEvent?.id || merchId || singleMerch?.id;
+    const entityTitle =
+      entityType === "event"
+        ? String(singleEvent?.title || "")
+        : String(singleMerch?.name || singleMerch?.title || "");
+
+    const trackingKey = [
+      siteId,
+      activePage.id,
+      path,
+      entityType || "",
+      String(entityId || ""),
+    ].join("|");
+
+    if (trackedPageViewKeyRef.current === trackingKey) return;
+    trackedPageViewKeyRef.current = trackingKey;
+
+    trackTrafficEvent({
+      siteId,
+      domain: window.location.host,
+      eventType: "page_view",
+      path,
+      pageId: String(activePage.id || ""),
+      pageTitle: String(activePage.title || ""),
+      pageType: String(activePage.pageType || "normal"),
+      entityType,
+      entityId: entityId ? String(entityId) : undefined,
+      entityTitle: entityTitle || undefined,
+      referrer: document.referrer || "",
+    });
+  }, [
+    activePage?.id,
+    activePage?.pageType,
+    activePage?.title,
+    eventId,
+    merchId,
+    pathname,
+    singleEvent?.id,
+    singleEvent?.title,
+    singleMerch?.id,
+    singleMerch?.name,
+    singleMerch?.title,
+    siteId,
+  ]);
 
   const pageHtml = useMemo(() => {
     const html = (activePage?.html || "").trim();

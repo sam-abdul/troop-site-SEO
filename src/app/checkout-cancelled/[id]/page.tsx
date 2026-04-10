@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChevronLeftCircleIcon, XCircleIcon } from "lucide-react";
+import { trackTrafficEvent } from "@/services/trafficAPI";
 
 export default function CheckOutCancelledPage() {
   const searchParams = useSearchParams();
@@ -21,6 +22,20 @@ export default function CheckOutCancelledPage() {
     : routeId
       ? `/event/${routeId}`
       : "/";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    trackTrafficEvent({
+      domain: window.location.host,
+      eventType: "checkout_cancelled",
+      path: window.location.pathname,
+      pageType: "checkout_cancelled",
+      entityType: isMerch ? "merch" : "event",
+      entityId: routeId || undefined,
+      referrer: document.referrer || "",
+    });
+  }, [isMerch, routeId]);
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-5 text-center font-[poppins]">
