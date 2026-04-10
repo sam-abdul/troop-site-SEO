@@ -55,8 +55,25 @@ const getOrCreateStorageId = (
   }
 };
 
+const isEmbeddedPreview = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  const search = new URLSearchParams(window.location.search);
+  if (search.get("preview") === "true") return true;
+
+  try {
+    if (window.self !== window.top) return true;
+  } catch {
+    // Cross-origin access can throw; if this happens we're embedded.
+    return true;
+  }
+
+  return false;
+};
+
 export const trackTrafficEvent = async (payload: TrackPayload) => {
   if (typeof window === "undefined") return;
+  if (isEmbeddedPreview()) return;
 
   const visitorId = getOrCreateStorageId(VISITOR_STORAGE_KEY, "local");
   const sessionId = getOrCreateStorageId(SESSION_STORAGE_KEY, "session");
