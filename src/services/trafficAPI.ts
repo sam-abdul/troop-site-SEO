@@ -23,6 +23,9 @@ type TrackPayload = {
 const VISITOR_STORAGE_KEY = "troop_traffic_visitor_id";
 const SESSION_STORAGE_KEY = "troop_traffic_session_id";
 
+let memoryVisitorId = "";
+let memorySessionId = "";
+
 const generateClientId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -43,7 +46,12 @@ const getOrCreateStorageId = (
     targetStorage.setItem(key, created);
     return created;
   } catch {
-    return generateClientId();
+    if (storage === "local") {
+      if (!memoryVisitorId) memoryVisitorId = generateClientId();
+      return memoryVisitorId;
+    }
+    if (!memorySessionId) memorySessionId = generateClientId();
+    return memorySessionId;
   }
 };
 
@@ -86,4 +94,3 @@ export const trackTrafficEvent = async (payload: TrackPayload) => {
     // noop
   }
 };
-
