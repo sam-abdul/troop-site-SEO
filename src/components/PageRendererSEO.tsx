@@ -571,8 +571,24 @@ const extractBodyStyleFallbacks = (css: string) => {
       lowered !== "initial" &&
       lowered !== "inherit" &&
       lowered !== "unset" &&
-      lowered !== "transparent"
+      lowered !== "transparent" &&
+      !lowered.startsWith("var(")
     );
+  };
+
+  const parseBackgroundColorFromShorthand = (value: string) => {
+    const normalized = value.trim();
+    if (!normalized) return "";
+
+    const colorMatch = normalized.match(
+      /(rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9a-fA-F]{3,8}\b)/i,
+    );
+    if (colorMatch?.[1]) return colorMatch[1].trim();
+
+    const namedColorMatch = normalized.match(/\b(black|white)\b/i);
+    if (namedColorMatch?.[1]) return namedColorMatch[1].trim();
+
+    return "";
   };
 
   const selectorRuleRegex =
@@ -586,6 +602,20 @@ const extractBodyStyleFallbacks = (css: string) => {
     );
     if (bgColorMatch?.[1] && isUsableValue(bgColorMatch[1])) {
       fallback.backgroundColor = bgColorMatch[1].trim();
+    }
+
+    if (!fallback.backgroundColor) {
+      const bgShorthandMatch = declarations.match(
+        /background\s*:\s*([^;]+)\s*;?/i,
+      );
+      if (bgShorthandMatch?.[1]) {
+        const shorthandColor = parseBackgroundColorFromShorthand(
+          bgShorthandMatch[1],
+        );
+        if (shorthandColor && isUsableValue(shorthandColor)) {
+          fallback.backgroundColor = shorthandColor;
+        }
+      }
     }
 
     const colorMatch = declarations.match(
@@ -604,6 +634,22 @@ const extractBodyStyleFallbacks = (css: string) => {
   }
 
   return fallback;
+};
+
+const resolveVisibleBackgroundColor = (value: string | undefined) => {
+  if (!value) return "";
+  const normalized = value.trim().toLowerCase();
+  if (
+    !normalized ||
+    normalized === "initial" ||
+    normalized === "inherit" ||
+    normalized === "unset" ||
+    normalized === "transparent" ||
+    normalized.startsWith("var(")
+  ) {
+    return "";
+  }
+  return value.trim();
 };
 
 const getStyleValue = (
@@ -995,8 +1041,28 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
   const getPageRoot = () =>
     shadowRef.current?.querySelector<HTMLElement>(".troop-page-body") || null;
 
-  const pageBackgroundColor =
-    bodyCssFallbacks.backgroundColor || activePage.bodyBackgroundColor || "#ffffff";
+  const pageBackgroundColor = useMemo(() => {
+    const resolved =
+      resolveVisibleBackgroundColor(bodyCssFallbacks.backgroundColor) ||
+      resolveVisibleBackgroundColor(activePage.bodyBackgroundColor);
+    if (resolved) return resolved;
+
+    const textColor = (
+      bodyCssFallbacks.color ||
+      activePage.bodyTextColor ||
+      ""
+    ).toLowerCase();
+    const likelyDarkPage =
+      textColor.includes("255") ||
+      textColor.includes("#fff") ||
+      textColor.includes("white");
+    return likelyDarkPage ? "#0b0b0b" : "#ffffff";
+  }, [
+    activePage.bodyBackgroundColor,
+    activePage.bodyTextColor,
+    bodyCssFallbacks.backgroundColor,
+    bodyCssFallbacks.color,
+  ]);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
