@@ -1006,6 +1006,8 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       shadowRef.current = host.attachShadow({ mode: "open" });
     }
 
+    setShadowReady(false);
+
     shadowRef.current.innerHTML = `
       ${shadowHeadHtml}
       <style>${shadowFontImportCss}</style>
@@ -1013,7 +1015,60 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
       <div class="troop-page-root troop-aos-fallback"><div class="troop-page-body">${pageHtml}</div></div>
     `;
 
-    setShadowReady(true);
+    let cancelled = false;
+    const linkElements = Array.from(
+      shadowRef.current.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+    );
+    const cleanupFns: Array<() => void> = [];
+
+    const markReady = () => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (!cancelled) {
+          setShadowReady(true);
+        }
+      });
+    };
+
+    if (!linkElements.length) {
+      markReady();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    let remaining = linkElements.length;
+    const onDone = () => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        markReady();
+      }
+    };
+
+    linkElements.forEach((link) => {
+      if ((link as any).sheet) {
+        onDone();
+        return;
+      }
+
+      const handleLoad = () => onDone();
+      const handleError = () => onDone();
+      link.addEventListener("load", handleLoad, { once: true });
+      link.addEventListener("error", handleError, { once: true });
+
+      cleanupFns.push(() => {
+        link.removeEventListener("load", handleLoad);
+        link.removeEventListener("error", handleError);
+      });
+    });
+
+    const timeoutId = window.setTimeout(markReady, 2200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      cleanupFns.forEach((fn) => fn());
+    };
   }, [pageBaseCss, pageCss, pageHtml, shadowHeadHtml]);
 
   useEffect(() => {
@@ -1620,6 +1675,8 @@ export const PageRendererSEO: React.FC<PageRendererSEOProps> = ({
             width: "100%",
             minHeight: "100dvh",
             visibility: shadowReady ? "visible" : "hidden",
+            opacity: shadowReady ? 1 : 0,
+            transition: "opacity 0.12s ease-out",
           }}
         />
       </div>
